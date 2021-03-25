@@ -379,6 +379,24 @@ bool page_compare(cairo_t *cr_out,
     return !has_diff;
 }
 
+void load_config() {
+    g_skip_identical = std::getenv("DIFF_PDF_SKIP_IDENTICAL");
+    g_mark_differences = std::getenv("DIFF_PDF_MARK_DIFFERENCES");
+    g_channel_tolerance =  atoi(std::getenv("DIFF_PDF_CHANNEL_TOLERANCE"));
+    g_grayscale = std::getenv("DIFF_PDF_GRAYSCALE");
+}
+
+void create_dirs(const char *pdf_output)
+{
+	remove(pdf_output);
+	std::string path(pdf_output);
+	size_t pos;
+    while ((pos = path.find("/")) != std::string::npos) {
+        path.replace(pos, 1, "\\");
+    }
+	std::string cmd = "mkdir " + path.substr(0, path.find_last_of("\\"));
+	system(cmd.c_str());
+}
 
 // Compares two documents, writing diff PDF into file named 'pdf_output' if
 // not NULL. if 'differences' is not NULL, puts a map of which pages differ
@@ -399,6 +417,7 @@ bool doc_compare(PopplerDocument *doc1, PopplerDocument *doc2,
     if ( pdf_output )
     {
         double w, h;
+		create_dirs(pdf_output);
         poppler_page_get_size(poppler_document_get_page(doc1, 0), &w, &h);
         surface_out = cairo_pdf_surface_create(pdf_output, w, h);
         cr_out = cairo_create(surface_out);
@@ -513,7 +532,12 @@ bool doc_compare(PopplerDocument *doc1, PopplerDocument *doc2,
         printf("%d of %d pages differ.\n", pages_differ, pages_total);
 
     // are doc1 and doc1 the same?
-    return (pages_differ == 0) && (pages1 == pages2);
+    bool status =  (pages_differ == 0) && (pages1 == pages2);
+	if(status){
+		remove(pdf_output);
+	}
+	
+	return status;
 }
 
 
@@ -873,6 +897,7 @@ IMPLEMENT_APP_NO_MAIN(DiffPdfApp);
 
 int main(int argc, char *argv[])
 {
+    load_config();
     wxAppConsole::CheckBuildOptions(WX_BUILD_OPTIONS_SIGNATURE, "diff-pdf");
     wxInitializer wxinitializer(argc, argv);
 
@@ -987,6 +1012,8 @@ int main(int argc, char *argv[])
 	}
     }
 
+    printf("g_skip_identical:%d , g_mark_differences:%d, g_channel_tolerance:%d , g_grayscale:%d\n",
+        g_skip_identical, g_mark_differences,  g_channel_tolerance, g_grayscale);
 
     int retval = 0;
 
